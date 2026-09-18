@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     environment:
       POSTGRES_USER: followup
       POSTGRES_PASSWORD: followup
@@ -38,7 +38,7 @@ services:
   web:
     build: ./apps/web
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       - api
     restart: unless-stopped
