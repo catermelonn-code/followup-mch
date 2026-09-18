@@ -1,0 +1,147 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  nurse
+  dept_admin
+  sys_admin
+}
+
+enum TaskStatus {
+  pending
+  done
+  overdue
+}
+
+model Department {
+  id        Int            @id @default(autoincrement())
+  name      String         @unique
+  code      String         @unique
+  createdAt DateTime       @default(now()) @map("created_at")
+  staff     Staff[]
+  patients  Patient[]
+  tasks     FollowUpTask[]
+
+  @@map("departments")
+}
+
+model Staff {
+  id                 Int            @id @default(autoincrement())
+  deptId             Int            @map("dept_id")
+  name               String
+  username           String         @unique
+  employeeNo         String         @unique @map("employee_no")
+  role               Role
+  passwordHash       String         @map("password_hash")
+  active             Boolean        @default(true)
+  mustChangePassword Boolean        @default(false) @map("must_change_password")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  dept               Department     @relation(fields: [deptId], references: [id])
+  ownedTasks         FollowUpTask[] @relation("TaskOwner")
+  completedTasks     FollowUpTask[] @relation("TaskCompleter")
+  importBatches      ImportBatch[]
+  events             TaskEvent[]
+
+  @@index([deptId])
+  @@index([name])
+  @@map("staff")
+}
+
+model Patient {
+  id        Int            @id @default(autoincrement())
+  name      String
+  phone     String
+  deptId    Int?           @map("dept_id")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+  dept      Department?    @relation(fields: [deptId], references: [id])
+  tasks     FollowUpTask[]
+
+  @@unique([phone, name])
+  @@index([phone])
+  @@map("patients")
+}
+
+model FollowUpTask {
+  id            Int          @id @default(autoincrement())
+  patientId     Int          @map("patient_id")
+  deptId        Int          @map("dept_id")
+  ownerId       Int          @map("owner_id")
+  planDate      DateTime     @map("plan_date") @db.Date
+  status        TaskStatus   @default(pending)
+  followUpType  String       @default("常规") @map("follow_up_type")
+  note          String       @default("") @db.Text
+  resultText    String?      @map("result_text") @db.Text
+  completedAt   DateTime?    @map("completed_at")
+  completedById Int?         @map("completed_by")
+  bizKey        String       @unique @map("biz_key")
+  importBatchId Int?         @map("import_batch_id")
+  sourceRow     Int?         @map("source_row")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  patient       Patient      @relation(fields: [patientId], references: [id])
+  dept          Department   @relation(fields: [deptId], references: [id])
+  owner         Staff        @relation("TaskOwner", fields: [ownerId], references: [id])
+  completedBy   Staff?       @relation("TaskCompleter", fields: [completedById], references: [id])
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+  events        TaskEvent[]
+
+  @@index([status, planDate])
+  @@index([deptId])
+  @@index([ownerId])
+  @@index([followUpType])
+  @@map("follow_up_tasks")
+}
+
+model ImportBatch {
+  id           Int         @id @default(autoincrement())
+  kind         String
+  filename     String
+  operatorId   Int         @map("operator_id")
+  successCount Int         @default(0) @map("success_count")
+  skipCount    Int         @default(0) @map("skip_count")
+  failCount    Int         @default(0) @map("fail_count")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  operator     Staff       @relation(fields: [operatorId], references: [id])
+  rows         ImportRow[]
+  tasks        FollowUpTask[]
+
+  @@index([operatorId])
+  @@index([kind, createdAt])
+  @@map("import_batches")
+}
+
+model ImportRow {
+  id      Int         @id @default(autoincrement())
+  batchId Int         @map("batch_id")
+  rowNo   Int         @map("row_no")
+  rawJson String      @map("raw_json") @db.Text
+  outcome String
+  reason  String      @default("")
+  batch   ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@map("import_rows")
+}
+
+model TaskEvent {
+  id         Int          @id @default(autoincrement())
+  taskId     Int          @map("task_id")
+  actorId    Int?         @map("actor_id")
+  fromStatus String?      @map("from_status")
+  toStatus   String       @map("to_status")
+  detail     String       @default("")
+  at         DateTime     @default(now())
+  task       FollowUpTask @relation(fields: [taskId], references: [id])
+  actor      Staff?       @relation(fields: [actorId], references: [id])
+
+  @@index([taskId, at])
+  @@map("task_events")
+}

@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+*.log
+.DS_Store
+_req.txt
+_req.md
+_req.docx
+_xlsx_extract
+apps/web/dist
+apps/api/dist
